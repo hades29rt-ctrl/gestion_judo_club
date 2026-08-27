@@ -35,3 +35,12 @@ async def get_current_user(
         raise credentials_exception
 
     return UtilisateurOut(**dict(row))
+
+
+async def get_current_admin(current_user: UtilisateurOut = Depends(get_current_user)) -> UtilisateurOut:
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Réservé aux administrateurs.",
+        )
+    return current_user

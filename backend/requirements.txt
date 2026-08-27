@@ -6,3 +6,5 @@ bcrypt
 python-dotenv
 pydantic[email]
 httpx
+pyotp
+qrcode[pil]
