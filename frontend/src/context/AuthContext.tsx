@@ -9,10 +9,16 @@ interface Utilisateur {
   role: string;
 }
 
+interface LoginResult {
+  totpRequis: boolean;
+  tokenTemporaire?: string;
+}
+
 interface AuthContextValue {
   utilisateur: Utilisateur | null;
   isAuthenticated: boolean;
-  login: (identifiant: string, mot_de_passe: string) => Promise<void>;
+  login: (identifiant: string, mot_de_passe: string) => Promise<LoginResult>;
+  verifier2FA: (tokenTemporaire: string, code: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -24,14 +30,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     !!localStorage.getItem("gestion_judo_token")
   );
 
-  async function login(identifiant: string, mot_de_passe: string) {
-    const response = await api.post("/auth/login", { identifiant, mot_de_passe });
-    const { access_token } = response.data;
-    localStorage.setItem("gestion_judo_token", access_token);
-    setIsAuthenticated(true);
-
+  async function chargerProfil() {
     const me = await api.get("/auth/me");
     setUtilisateur(me.data);
+  }
+
+  async function login(identifiant: string, mot_de_passe: string): Promise<LoginResult> {
+    const response = await api.post("/auth/login", { identifiant, mot_de_passe });
+    const { totp_requis, token_temporaire, access_token } = response.data;
+
+    if (totp_requis) {
+      return { totpRequis: true, tokenTemporaire: token_temporaire };
+    }
+
+    localStorage.setItem("gestion_judo_token", access_token);
+    setIsAuthenticated(true);
+    await chargerProfil();
+    return { totpRequis: false };
+  }
+
+  async function verifier2FA(tokenTemporaire: string, code: string) {
+    const response = await api.post("/auth/login/2fa", {
+      token_temporaire: tokenTemporaire,
+      code,
+    });
+    localStorage.setItem("gestion_judo_token", response.data.access_token);
+    setIsAuthenticated(true);
+    await chargerProfil();
   }
 
   function logout() {
@@ -41,7 +66,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ utilisateur, isAuthenticated, login, logout }}>
+    <AuthContext.Provider
+      value={{ utilisateur, isAuthenticated, login, verifier2FA, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
