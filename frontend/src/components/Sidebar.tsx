@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Users, BarChart3, LogOut, Swords, CalendarDays, IdCard, Trophy, CreditCard, Mail } from "lucide-react";
+import { Users, BarChart3, LogOut, Swords, CalendarDays, IdCard, Trophy, CreditCard, Mail, ShieldCheck, UserCog } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
@@ -10,10 +10,16 @@ const NAV_ITEMS = [
   { to: "/paiements", label: "Paiements", icon: CreditCard },
   { to: "/communication", label: "Message", icon: Mail },
   { to: "/statistiques", label: "Statistiques", icon: BarChart3 },
+  { to: "/securite", label: "Sécurité", icon: ShieldCheck },
 ];
 
 export function Sidebar() {
   const { utilisateur, logout } = useAuth();
+
+  const items = [...NAV_ITEMS];
+  if (utilisateur?.role === "admin") {
+    items.push({ to: "/utilisateurs", label: "Utilisateurs", icon: UserCog });
+  }
 
   return (
     <aside className="w-64 shrink-0 bg-ink text-white flex flex-col h-screen sticky top-0">
@@ -25,7 +31,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 mt-4 space-y-1">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
