@@ -32,6 +32,50 @@ export interface AdherentJudoka {
   judoka: Judoka | null;
 }
 
+export interface TauxPresenceCours {
+  cours_id: number;
+  cours_nom: string;
+  total_seances: number;
+  total_presences_possibles: number;
+  total_presences_reelles: number;
+  taux_pourcentage: number;
+}
+
+export interface RepartitionCategorieAge {
+  categorie: string;
+  effectif: number;
+}
+
+export interface RepartitionGrade {
+  grade: string;
+  effectif: number;
+}
+
+export interface RepartitionLicenceStatut {
+  statut: string;
+  effectif: number;
+}
+
+export interface PodiumsJudoka {
+  judoka_id: number;
+  nom: string;
+  prenom: string;
+  premieres_places: number;
+  deuxiemes_places: number;
+  troisiemes_places: number;
+  total_podiums: number;
+}
+
+export interface StatistiquesGlobales {
+  taux_presence_par_cours: TauxPresenceCours[];
+  repartition_categorie_age: RepartitionCategorieAge[];
+  repartition_grade: RepartitionGrade[];
+  repartition_licence_statut: RepartitionLicenceStatut[];
+  podiums_par_judoka: PodiumsJudoka[];
+  total_adherents_actifs: number;
+  total_judokas: number;
+}
+
 export interface Paiement {
   id: number;
   judoka_id: number;
