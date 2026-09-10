@@ -1,5 +1,6 @@
 from datetime import date
-from pydantic import BaseModel, EmailStr
+from typing import Literal
+from pydantic import BaseModel, Field
 
 
 # ---------- Adhérent ----------
@@ -7,8 +8,7 @@ from pydantic import BaseModel, EmailStr
 class AdherentBase(BaseModel):
     nom: str
     prenom: str
-    email: EmailStr | None = None
-    telephone: str | None = None
+    famille_id: int
     adresse: str | None = None
     code_postal: str | None = None
     ville: str | None = None
@@ -22,8 +22,7 @@ class AdherentCreate(AdherentBase):
 class AdherentUpdate(BaseModel):
     nom: str | None = None
     prenom: str | None = None
-    email: EmailStr | None = None
-    telephone: str | None = None
+    famille_id: int | None = None
     adresse: str | None = None
     code_postal: str | None = None
     ville: str | None = None
@@ -46,7 +45,7 @@ GRADES_VALIDES = [
 
 class JudokaBase(BaseModel):
     date_naissance: date
-    sexe: str  # 'M' ou 'F'
+    sexe: Literal["M", "F"]
     numero_licence_ffj: str | None = None
     licence_saison: str | None = None
     licence_statut: str = "non_transmise"
@@ -64,7 +63,7 @@ class JudokaCreate(JudokaBase):
 
 class JudokaUpdate(BaseModel):
     date_naissance: date | None = None
-    sexe: str | None = None
+    sexe: Literal["M", "F"] | None = None
     numero_licence_ffj: str | None = None
     licence_saison: str | None = None
     licence_statut: str | None = None
@@ -93,3 +92,6 @@ class AdherentJudokaCreate(BaseModel):
 class AdherentJudokaOut(BaseModel):
     adherent: AdherentOut
     judoka: JudokaOut | None = None
+    famille_nom: str | None = None
+    famille_telephone: str | None = None
+    famille_email: str | None = None

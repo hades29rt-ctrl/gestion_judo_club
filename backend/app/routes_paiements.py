@@ -18,6 +18,7 @@ router = APIRouter(
 
 _SELECT_PAIEMENTS = """
     SELECT p.id, p.judoka_id, p.competition_id, p.type, p.libelle, p.montant_centimes,
+           p.reduction_centimes, (p.montant_centimes - p.reduction_centimes) AS montant_net_centimes,
            p.saison, p.statut, p.checkout_intent_id, p.date_creation, p.date_paiement,
            a.nom AS judoka_nom, a.prenom AS judoka_prenom
     FROM paiements p
@@ -30,12 +31,13 @@ _SELECT_PAIEMENTS = """
 async def creer_paiement(payload: PaiementCreate):
     pool = get_pool()
 
-    # Récupère les infos du judoka/adhérent pour préremplir le payeur HelloAsso.
+    # Récupère les infos du judoka/adhérent/famille pour préremplir le payeur HelloAsso.
     judoka_row = await pool.fetchrow(
         """
-        SELECT a.nom, a.prenom, a.email
+        SELECT a.nom, a.prenom, f.email
         FROM judokas j
         JOIN adherents a ON a.id = j.adherent_id
+        LEFT JOIN familles f ON f.id = a.famille_id
         WHERE j.id = $1
         """,
         payload.judoka_id,
@@ -45,24 +47,23 @@ async def creer_paiement(payload: PaiementCreate):
     if not judoka_row["email"]:
         raise HTTPException(
             status_code=400,
-            detail="L'adhérent doit avoir une adresse email renseignée pour initier un paiement.",
+            detail="La famille de cet adhérent doit avoir une adresse email renseignée pour initier un paiement.",
         )
 
-    # Crée d'abord l'enregistrement local en attente.
     paiement_row = await pool.fetchrow(
         """
-        INSERT INTO paiements (judoka_id, competition_id, type, libelle, montant_centimes, saison)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, judoka_id, competition_id, type, libelle, montant_centimes,
+        INSERT INTO paiements (judoka_id, competition_id, type, libelle, montant_centimes, reduction_centimes, saison)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, judoka_id, competition_id, type, libelle, montant_centimes, reduction_centimes,
                   saison, statut, checkout_intent_id, date_creation, date_paiement
         """,
         payload.judoka_id, payload.competition_id, payload.type,
-        payload.libelle, payload.montant_centimes, payload.saison,
+        payload.libelle, payload.montant_centimes, payload.reduction_centimes, payload.saison,
     )
 
     try:
         checkout = await creer_checkout_intent(
-            montant_centimes=payload.montant_centimes,
+            montant_centimes=payload.montant_net_centimes,
             libelle=payload.libelle,
             prenom_payeur=judoka_row["prenom"],
             nom_payeur=judoka_row["nom"],
@@ -70,15 +71,13 @@ async def creer_paiement(payload: PaiementCreate):
             reference_interne=paiement_row["id"],
         )
     except HelloAssoError as e:
-        # On garde l'enregistrement local mais on remonte l'erreur HelloAsso.
         raise HTTPException(status_code=502, detail=str(e))
 
     updated = await pool.fetchrow(
         """
         UPDATE paiements SET checkout_intent_id = $2
         WHERE id = $1
-        RETURNING id, judoka_id, competition_id, type, libelle, montant_centimes,
-                  saison, statut, checkout_intent_id, date_creation, date_paiement
+        RETURNING id
         """,
         paiement_row["id"], checkout["id"],
     )
@@ -114,10 +113,6 @@ async def lister_paiements(judoka_id: int | None = None, statut: str | None = No
 
 @router.post("/{paiement_id}/verifier", response_model=PaiementOut)
 async def verifier_statut_paiement(paiement_id: int):
-    """
-    Interroge HelloAsso pour connaître l'état réel du paiement et met à jour
-    l'enregistrement local en conséquence (pas de webhook : vérification manuelle/polling).
-    """
     pool = get_pool()
     paiement = await pool.fetchrow(
         "SELECT checkout_intent_id, statut FROM paiements WHERE id = $1", paiement_id
@@ -135,17 +130,16 @@ async def verifier_statut_paiement(paiement_id: int):
     code_statut = checkout.get("order", {}).get("payments", [{}])[0].get("state") if checkout.get("order") else None
 
     nouveau_statut = paiement["statut"]
-    date_paiement_sql = "date_paiement"
     if code_statut == "Authorized":
         nouveau_statut = "paye"
     elif code_statut in ("Refused", "Expired"):
         nouveau_statut = "echoue"
 
     updated = await pool.fetchrow(
-        f"""
+        """
         UPDATE paiements
         SET statut = $2,
-            date_paiement = CASE WHEN $2 = 'paye' THEN now() ELSE {date_paiement_sql} END
+            date_paiement = CASE WHEN $2 = 'paye' THEN now() ELSE date_paiement END
         WHERE id = $1
         RETURNING id
         """,

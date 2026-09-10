@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db_pool, close_db_pool
 from app.routes_auth import router as auth_router
+from app.routes_familles import router as familles_router
 from app.routes_adherents import router as adherents_router
 from app.routes_cours import router as cours_router
 from app.routes_licences import router as licences_router
@@ -32,6 +33,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(familles_router)
 app.include_router(adherents_router)
 app.include_router(cours_router)
 app.include_router(licences_router)

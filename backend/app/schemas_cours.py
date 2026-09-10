@@ -8,7 +8,7 @@ class CoursBase(BaseModel):
     nom: str
     categorie_age_cible: str | None = None
     professeur: str | None = None
-    jour_semaine: int | None = Field(default=None, ge=1, le=6)  # 1 = lundi ... 6 = samedi (pas de cours le dimanche)
+    jour_semaine: int | None = Field(default=None, ge=1, le=6)  # 1 = lundi ... 6 = samedi
     heure_debut: time | None = None
     heure_fin: time | None = None
     lieu: str | None = None
@@ -39,7 +39,7 @@ class CoursOut(CoursBase):
 class InscriptionCreate(BaseModel):
     judoka_id: int
     cours_id: int
-    saison: str  # ex : '2025-2026'
+    saison: str
 
 
 class InscriptionOut(BaseModel):
@@ -48,23 +48,20 @@ class InscriptionOut(BaseModel):
     cours_id: int
     saison: str
     date_inscription: date
-    # infos jointes pour affichage direct côté frontend
     judoka_nom: str | None = None
     judoka_prenom: str | None = None
-    judoka_email: str | None = None
+    judoka_email: str | None = None  # email de la famille rattachée au judoka
 
 
 # ---------- Présences ----------
 
 class PresenceUpsert(BaseModel):
-    """Une ligne d'appel pour un judoka donné à une séance donnée."""
     judoka_id: int
     present: bool
     notes: str | None = None
 
 
 class AppelSeance(BaseModel):
-    """Corps de requête pour enregistrer l'appel complet d'une séance."""
     cours_id: int
     date_seance: date
     presences: list[PresenceUpsert]

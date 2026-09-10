@@ -115,7 +115,6 @@ async def inscrire_judoka(cours_id: int, payload: InscriptionCreate):
     except Exception as e:
         if "unique" in str(e).lower() or "duplicate" in str(e).lower():
             raise HTTPException(status_code=409, detail="Ce judoka est déjà inscrit à ce cours pour cette saison.")
-        # Détail exact remonté temporairement pour diagnostiquer plus vite en développement.
         raise HTTPException(status_code=400, detail=f"Impossible d'inscrire ce judoka : {e}")
 
     return InscriptionOut(**dict(row))
@@ -126,10 +125,11 @@ async def lister_inscriptions(cours_id: int, saison: str | None = None):
     pool = get_pool()
     query = """
         SELECT ic.id, ic.judoka_id, ic.cours_id, ic.saison, ic.date_inscription,
-               a.nom AS judoka_nom, a.prenom AS judoka_prenom, a.email AS judoka_email
+               a.nom AS judoka_nom, a.prenom AS judoka_prenom, f.email AS judoka_email
         FROM inscriptions_cours ic
         JOIN judokas j ON j.id = ic.judoka_id
         JOIN adherents a ON a.id = j.adherent_id
+        LEFT JOIN familles f ON f.id = a.famille_id
         WHERE ic.cours_id = $1
     """
     params = [cours_id]
@@ -159,7 +159,6 @@ async def desinscrire_judoka(cours_id: int, inscription_id: int):
 
 @router.post("/{cours_id}/appel", response_model=list[PresenceOut], status_code=status.HTTP_201_CREATED)
 async def enregistrer_appel(cours_id: int, payload: AppelSeance):
-    """Enregistre (ou met à jour) l'appel complet d'une séance en une fois."""
     if payload.cours_id != cours_id:
         raise HTTPException(status_code=400, detail="cours_id incohérent entre l'URL et le corps de la requête.")
 
@@ -188,7 +187,6 @@ async def enregistrer_appel(cours_id: int, payload: AppelSeance):
 
 @router.get("/{cours_id}/appel", response_model=list[PresenceOut])
 async def obtenir_appel(cours_id: int, date_seance: date):
-    """Récupère l'appel déjà enregistré pour une date donnée (format YYYY-MM-DD)."""
     pool = get_pool()
     rows = await pool.fetch(
         """

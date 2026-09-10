@@ -43,8 +43,9 @@ def _row_to_judoka_out(row) -> JudokaOut | None:
 
 _SELECT_JOINT = """
     SELECT
-        a.id AS adherent_id, a.nom, a.prenom, a.email, a.telephone,
+        a.id AS adherent_id, a.nom, a.prenom, a.famille_id,
         a.adresse, a.code_postal, a.ville, a.actif,
+        f.nom_famille AS famille_nom, f.telephone AS famille_telephone, f.email AS famille_email,
         j.id AS judoka_id, j.date_naissance, j.sexe,
         j.numero_licence_ffj, j.licence_saison, j.licence_statut,
         j.grade_actuel, j.date_obtention_grade_actuel,
@@ -55,8 +56,22 @@ _SELECT_JOINT = """
              ELSE NULL
         END AS categorie_age
     FROM adherents a
+    LEFT JOIN familles f ON f.id = a.famille_id
     LEFT JOIN judokas j ON j.adherent_id = a.id
 """
+
+
+def _row_to_adherent_judoka_out(r) -> AdherentJudokaOut:
+    return AdherentJudokaOut(
+        adherent=AdherentOut(
+            id=r["adherent_id"], nom=r["nom"], prenom=r["prenom"], famille_id=r["famille_id"],
+            adresse=r["adresse"], code_postal=r["code_postal"], ville=r["ville"], actif=r["actif"],
+        ),
+        judoka=_row_to_judoka_out(r),
+        famille_nom=r["famille_nom"],
+        famille_telephone=r["famille_telephone"],
+        famille_email=r["famille_email"],
+    )
 
 
 @router.post("", response_model=AdherentJudokaOut, status_code=status.HTTP_201_CREATED)
@@ -64,22 +79,28 @@ async def creer_adherent_judoka(payload: AdherentJudokaCreate):
     pool = get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            famille_existe = await conn.fetchrow(
+                "SELECT id FROM familles WHERE id = $1", payload.adherent.famille_id
+            )
+            if famille_existe is None:
+                raise HTTPException(status_code=404, detail="Famille introuvable.")
+
             adherent_row = await conn.fetchrow(
                 """
-                INSERT INTO adherents (nom, prenom, email, telephone, adresse, code_postal, ville, actif)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING id, nom, prenom, email, telephone, adresse, code_postal, ville, actif
+                INSERT INTO adherents (nom, prenom, famille_id, adresse, code_postal, ville, actif)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id
                 """,
-                payload.adherent.nom, payload.adherent.prenom, payload.adherent.email,
-                payload.adherent.telephone, payload.adherent.adresse,
-                payload.adherent.code_postal, payload.adherent.ville, payload.adherent.actif,
+                payload.adherent.nom, payload.adherent.prenom, payload.adherent.famille_id,
+                payload.adherent.adresse, payload.adherent.code_postal,
+                payload.adherent.ville, payload.adherent.actif,
             )
 
             j = payload.judoka
             numero_licence = j.numero_licence_ffj or generer_numero_licence_ffj(
                 j.sexe, j.date_naissance, payload.adherent.nom
             )
-            judoka_row = await conn.fetchrow(
+            await conn.execute(
                 """
                 INSERT INTO judokas (
                     adherent_id, date_naissance, sexe, numero_licence_ffj, licence_saison,
@@ -88,11 +109,6 @@ async def creer_adherent_judoka(payload: AdherentJudokaCreate):
                     contact_urgence_nom, contact_urgence_tel
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                RETURNING id, adherent_id, date_naissance, sexe, numero_licence_ffj,
-                          licence_saison, licence_statut, grade_actuel,
-                          date_obtention_grade_actuel, certificat_medical_date,
-                          certificat_medical_validite, contact_urgence_nom, contact_urgence_tel,
-                          categorie_age_ffjda(date_naissance) AS categorie_age
                 """,
                 adherent_row["id"], j.date_naissance, j.sexe, numero_licence,
                 j.licence_saison, j.licence_statut, j.grade_actuel,
@@ -100,10 +116,9 @@ async def creer_adherent_judoka(payload: AdherentJudokaCreate):
                 j.certificat_medical_validite, j.contact_urgence_nom, j.contact_urgence_tel,
             )
 
-    return AdherentJudokaOut(
-        adherent=AdherentOut(**dict(adherent_row)),
-        judoka=JudokaOut(**dict(judoka_row)),
-    )
+            result = await conn.fetchrow(_SELECT_JOINT + " WHERE a.id = $1", adherent_row["id"])
+
+    return _row_to_adherent_judoka_out(result)
 
 
 @router.get("", response_model=list[AdherentJudokaOut])
@@ -117,17 +132,7 @@ async def lister_adherents(actif: bool | None = None):
     query += " ORDER BY a.nom, a.prenom"
 
     rows = await pool.fetch(query, *params)
-    return [
-        AdherentJudokaOut(
-            adherent=AdherentOut(
-                id=r["adherent_id"], nom=r["nom"], prenom=r["prenom"], email=r["email"],
-                telephone=r["telephone"], adresse=r["adresse"], code_postal=r["code_postal"],
-                ville=r["ville"], actif=r["actif"],
-            ),
-            judoka=_row_to_judoka_out(r),
-        )
-        for r in rows
-    ]
+    return [_row_to_adherent_judoka_out(r) for r in rows]
 
 
 @router.get("/{adherent_id}", response_model=AdherentJudokaOut)
@@ -136,15 +141,7 @@ async def obtenir_adherent(adherent_id: int):
     row = await pool.fetchrow(_SELECT_JOINT + " WHERE a.id = $1", adherent_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Adhérent introuvable.")
-
-    return AdherentJudokaOut(
-        adherent=AdherentOut(
-            id=row["adherent_id"], nom=row["nom"], prenom=row["prenom"], email=row["email"],
-            telephone=row["telephone"], adresse=row["adresse"], code_postal=row["code_postal"],
-            ville=row["ville"], actif=row["actif"],
-        ),
-        judoka=_row_to_judoka_out(row),
-    )
+    return _row_to_adherent_judoka_out(row)
 
 
 @router.put("/{adherent_id}", response_model=AdherentOut)
@@ -158,7 +155,7 @@ async def modifier_adherent(adherent_id: int, payload: AdherentUpdate):
     query = f"""
         UPDATE adherents SET {', '.join(set_clauses)}
         WHERE id = $1
-        RETURNING id, nom, prenom, email, telephone, adresse, code_postal, ville, actif
+        RETURNING id, nom, prenom, famille_id, adresse, code_postal, ville, actif
     """
     row = await pool.fetchrow(query, adherent_id, *champs.values())
     if row is None:
