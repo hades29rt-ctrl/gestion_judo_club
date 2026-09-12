@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { Users, BarChart3, LogOut, Swords, CalendarDays, IdCard, Trophy, CreditCard, Mail, ShieldCheck, UserCog } from "lucide-react";
+import { Users, BarChart3, LogOut, Swords, CalendarDays, IdCard, Trophy, CreditCard, Mail, ShieldCheck, UserCog, Home } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/adherents", label: "Adhérents", icon: Users },
+  { to: "/familles", label: "Familles", icon: Home },
   { to: "/cours", label: "Cours", icon: CalendarDays },
   { to: "/competitions", label: "Compétitions", icon: Trophy },
   { to: "/licences", label: "Licences FFJ", icon: IdCard },
@@ -30,7 +31,7 @@ export function Sidebar() {
         </span>
       </div>
 
-      <nav className="flex-1 px-3 mt-4 space-y-1">
+      <nav className="flex-1 px-3 mt-4 space-y-1 overflow-y-auto">
         {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}

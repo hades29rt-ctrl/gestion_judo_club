@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, Search, UserX, UserCheck } from "lucide-react";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import type { AdherentJudoka } from "../types";
 import { LABELS_CATEGORIE_AGE, LABELS_LICENCE_STATUT, LABELS_GRADE } from "../lib/labels";
@@ -22,8 +23,6 @@ export function AdherentsPage() {
   }
 
   useEffect(() => {
-    // oxlint signale un faux positif ici : `charger` est async et met à jour
-    // l'état après un `await`, donc pas de cascade de rendu synchrone.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     charger();
   }, []);
@@ -61,13 +60,21 @@ export function AdherentsPage() {
             {adherents.length > 1 ? "s" : ""}
           </p>
         </div>
-        <button
-          onClick={() => setModalOuvert(true)}
-          className="flex items-center gap-2 bg-ink text-white text-sm font-medium px-4 py-2.5 rounded-md hover:bg-ink-light transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nouvel adhérent
-        </button>
+        <div className="flex gap-2">
+          <Link
+            to="/familles"
+            className="flex items-center gap-2 bg-card border border-border text-ink_text text-sm font-medium px-4 py-2.5 rounded-md hover:bg-surface transition-colors"
+          >
+            Familles
+          </Link>
+          <button
+            onClick={() => setModalOuvert(true)}
+            className="flex items-center gap-2 bg-ink text-white text-sm font-medium px-4 py-2.5 rounded-md hover:bg-ink-light transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvel adhérent
+          </button>
+        </div>
       </div>
 
       <div className="relative mb-4 max-w-sm">
@@ -88,7 +95,7 @@ export function AdherentsPage() {
               <th className="px-4 py-3">Catégorie</th>
               <th className="px-4 py-3">Grade</th>
               <th className="px-4 py-3">Licence FFJ</th>
-              <th className="px-4 py-3">Contact</th>
+              <th className="px-4 py-3">Contact famille</th>
               <th className="px-4 py-3">Statut</th>
               <th className="px-4 py-3 w-10"></th>
             </tr>
@@ -108,7 +115,7 @@ export function AdherentsPage() {
                 </td>
               </tr>
             )}
-            {filtres.map(({ adherent, judoka }) => {
+            {filtres.map(({ adherent, judoka, famille_nom, famille_telephone, famille_email }) => {
               const statut = judoka
                 ? LABELS_LICENCE_STATUT[judoka.licence_statut]
                 : null;
@@ -142,7 +149,16 @@ export function AdherentsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-muted">
-                    {adherent.email || adherent.telephone || "—"}
+                    {famille_nom ? (
+                      <span>
+                        {famille_nom}
+                        {famille_email || famille_telephone
+                          ? ` — ${famille_email || famille_telephone}`
+                          : ""}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -158,7 +174,7 @@ export function AdherentsPage() {
                   <td className="px-4 py-3">
                     {adherent.actif ? (
                       <button
-                        onClick={() => setAdherentAAnnuler({ adherent, judoka })}
+                        onClick={() => setAdherentAAnnuler({ adherent, judoka, famille_nom, famille_telephone, famille_email })}
                         title="Annuler l'inscription"
                         className="text-muted hover:text-danger"
                       >

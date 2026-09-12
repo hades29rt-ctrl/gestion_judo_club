@@ -5,6 +5,7 @@ import { RouteProtegee } from "./components/RouteProtegee";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AdherentsPage } from "./pages/AdherentsPage";
+import { FamillesPage } from "./pages/FamillesPage";
 import { CoursPage } from "./pages/CoursPage";
 import { AppelPage } from "./pages/AppelPage";
 import { LicencesPage } from "./pages/LicencesPage";
@@ -31,6 +32,7 @@ export default function App() {
             }
           >
             <Route path="/adherents" element={<AdherentsPage />} />
+            <Route path="/familles" element={<FamillesPage />} />
             <Route path="/cours" element={<CoursPage />} />
             <Route path="/cours/:coursId/appel" element={<AppelPage />} />
             <Route path="/licences" element={<LicencesPage />} />

@@ -41,6 +41,30 @@ export const LABELS_CATEGORIE_AGE: Record<string, string> = {
   veterans: "Vétérans",
 };
 
+export const LABELS_JOUR_SEMAINE: Record<number, string> = {
+  1: "Lundi",
+  2: "Mardi",
+  3: "Mercredi",
+  4: "Jeudi",
+  5: "Vendredi",
+  6: "Samedi",
+};
+
+export const LABELS_LICENCE_STATUT: Record<string, { label: string; classe: string }> = {
+  non_transmise: { label: "Non transmise", classe: "bg-border text-muted" },
+  en_attente: { label: "En attente", classe: "bg-gold/15 text-gold-dark" },
+  transmise: { label: "Transmise", classe: "bg-ink/10 text-ink" },
+  validee: { label: "Validée", classe: "bg-emerald-100 text-emerald-700" },
+  expiree: { label: "Expirée", classe: "bg-danger/10 text-danger" },
+};
+
+export const LABELS_TYPE_COMPETITION: Record<string, string> = {
+  tournoi: "Tournoi",
+  stage: "Stage",
+  competition_officielle: "Compétition officielle",
+  animation: "Animation",
+};
+
 export const LABELS_TYPE_PAIEMENT: Record<string, string> = {
   cotisation: "Cotisation",
   stage: "Stage",
@@ -53,27 +77,4 @@ export const LABELS_STATUT_PAIEMENT: Record<string, { label: string; classe: str
   paye: { label: "Payé", classe: "bg-emerald-100 text-emerald-700" },
   echoue: { label: "Échoué", classe: "bg-danger/10 text-danger" },
   annule: { label: "Annulé", classe: "bg-border text-muted" },
-};
-
-export const LABELS_TYPE_COMPETITION: Record<string, string> = {
-  tournoi: "Tournoi",
-  stage: "Stage",
-  competition_officielle: "Compétition officielle",
-  animation: "Animation",
-};
-
-export const LABELS_JOUR_SEMAINE: Record<number, string> = {
-  1: "Lundi",
-  2: "Mardi",
-  3: "Mercredi",
-  4: "Jeudi",
-  5: "Vendredi",
-  6: "Samedi",
-};
-export const LABELS_LICENCE_STATUT: Record<string, { label: string; classe: string }> = {
-  non_transmise: { label: "Non transmise", classe: "bg-border text-muted" },
-  en_attente: { label: "En attente", classe: "bg-gold/15 text-gold-dark" },
-  transmise: { label: "Transmise", classe: "bg-ink/10 text-ink" },
-  validee: { label: "Validée", classe: "bg-emerald-100 text-emerald-700" },
-  expiree: { label: "Expirée", classe: "bg-danger/10 text-danger" },
 };

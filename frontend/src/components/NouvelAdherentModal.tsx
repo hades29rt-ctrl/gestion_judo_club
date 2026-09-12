@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { X } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { api } from "../lib/api";
 import { GRADES_VALIDES, LABELS_GRADE } from "../lib/labels";
+import type { Famille, FamilleAvecEffectif } from "../types";
+import { NouvelleFamilleModal } from "./NouvelleFamilleModal";
 
 interface Props {
   onClose: () => void;
@@ -10,18 +12,38 @@ interface Props {
 }
 
 export function NouvelAdherentModal({ onClose, onCreated }: Props) {
+  const [familles, setFamilles] = useState<FamilleAvecEffectif[]>([]);
+  const [familleId, setFamilleId] = useState("");
+  const [modalNouvelleFamille, setModalNouvelleFamille] = useState(false);
+
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
-  const [email, setEmail] = useState("");
-  const [telephone, setTelephone] = useState("");
   const [dateNaissance, setDateNaissance] = useState("");
   const [sexe, setSexe] = useState<"M" | "F">("M");
   const [gradeActuel, setGradeActuel] = useState("blanche");
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
 
+  async function chargerFamilles() {
+    const { data } = await api.get<FamilleAvecEffectif[]>("/familles");
+    setFamilles(data);
+  }
+
+  useEffect(() => {
+    chargerFamilles();
+  }, []);
+
+  function familleCreee(famille: Famille) {
+    chargerFamilles();
+    setFamilleId(String(famille.id));
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!familleId) {
+      setErreur("Sélectionnez ou créez une famille.");
+      return;
+    }
     setErreur(null);
     setEnvoi(true);
     try {
@@ -29,8 +51,7 @@ export function NouvelAdherentModal({ onClose, onCreated }: Props) {
         adherent: {
           nom,
           prenom,
-          email: email || null,
-          telephone: telephone || null,
+          famille_id: Number(familleId),
         },
         judoka: {
           date_naissance: dateNaissance,
@@ -58,6 +79,33 @@ export function NouvelAdherentModal({ onClose, onCreated }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Famille</label>
+            <div className="flex gap-2">
+              <select
+                value={familleId}
+                onChange={(e) => setFamilleId(e.target.value)}
+                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+                required
+              >
+                <option value="">Sélectionner...</option>
+                {familles.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nom_famille} ({f.nombre_adherents} adhérent{f.nombre_adherents > 1 ? "s" : ""})
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setModalNouvelleFamille(true)}
+                title="Créer une nouvelle famille"
+                className="shrink-0 px-3 py-2 border border-border rounded-md text-muted hover:text-ink_text hover:bg-surface"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium mb-1.5">Nom</label>
@@ -77,25 +125,6 @@ export function NouvelAdherentModal({ onClose, onCreated }: Props) {
                 required
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Téléphone</label>
-            <input
-              value={telephone}
-              onChange={(e) => setTelephone(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
-            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -159,6 +188,13 @@ export function NouvelAdherentModal({ onClose, onCreated }: Props) {
           </div>
         </form>
       </div>
+
+      {modalNouvelleFamille && (
+        <NouvelleFamilleModal
+          onClose={() => setModalNouvelleFamille(false)}
+          onSaved={familleCreee}
+        />
+      )}
     </div>
   );
 }
