@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel
 
+RoleUtilisateur = Literal["admin", "president", "tresorier", "secretaire", "membre", "adherent"]
+
 
 class LoginRequest(BaseModel):
     identifiant: str
@@ -9,11 +11,6 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    """
-    Si le compte n'a pas le 2FA activé : access_token directement rempli.
-    Si le 2FA est activé : totp_requis=True et un token temporaire est renvoyé,
-    à renvoyer avec le code TOTP sur /auth/login/2fa pour obtenir l'access_token final.
-    """
     totp_requis: bool = False
     token_temporaire: str | None = None
     access_token: str | None = None
@@ -32,7 +29,7 @@ class TokenResponse(BaseModel):
 
 class Activer2FAOut(BaseModel):
     secret: str
-    qr_code_base64: str  # image PNG encodée en base64, prête à afficher en <img>
+    qr_code_base64: str
 
 
 class Confirmer2FARequest(BaseModel):
@@ -43,21 +40,27 @@ class UtilisateurOut(BaseModel):
     id: int
     identifiant: str
     nom: str | None
-    role: str
+    role: RoleUtilisateur
 
 
 class RegisterRequest(BaseModel):
+    """
+    Inscription publique. Le rôle n'est pas choisi par l'utilisateur :
+    - le tout premier compte créé sur l'instance devient automatiquement
+      admin et actif immédiatement (bootstrap) ;
+    - tous les suivants sont créés avec le rôle 'adherent', désactivés,
+      en attente de validation par un administrateur.
+    """
     identifiant: str
     mot_de_passe: str
     nom: str | None = None
-    role: Literal["professeur", "secretaire", "lecture_seule"] = "lecture_seule"
 
 
 class UtilisateurAdminOut(BaseModel):
     id: int
     identifiant: str
     nom: str | None
-    role: str
+    role: RoleUtilisateur
     actif: bool
     created_at: datetime
     last_login_at: datetime | None
@@ -65,3 +68,7 @@ class UtilisateurAdminOut(BaseModel):
 
 class ActiverUtilisateurRequest(BaseModel):
     actif: bool
+
+
+class ChangerRoleRequest(BaseModel):
+    role: RoleUtilisateur

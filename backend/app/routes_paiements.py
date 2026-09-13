@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.database import get_pool
 from app.dependencies import get_current_user
-from app.schemas_paiements import PaiementCreate, PaiementOut, PaiementInitieOut
+from app.schemas_paiements import (
+    PaiementCreate,
+    PaiementOut,
+    PaiementInitieOut,
+    ValiderPaiementManuelRequest,
+)
 from app.services_helloasso import (
     creer_checkout_intent,
     obtenir_statut_checkout,
@@ -19,7 +24,7 @@ router = APIRouter(
 _SELECT_PAIEMENTS = """
     SELECT p.id, p.judoka_id, p.competition_id, p.type, p.libelle, p.montant_centimes,
            p.reduction_centimes, (p.montant_centimes - p.reduction_centimes) AS montant_net_centimes,
-           p.saison, p.statut, p.checkout_intent_id, p.date_creation, p.date_paiement,
+           p.mode_paiement, p.saison, p.statut, p.checkout_intent_id, p.date_creation, p.date_paiement,
            a.nom AS judoka_nom, a.prenom AS judoka_prenom
     FROM paiements p
     JOIN judokas j ON j.id = p.judoka_id
@@ -31,7 +36,6 @@ _SELECT_PAIEMENTS = """
 async def creer_paiement(payload: PaiementCreate):
     pool = get_pool()
 
-    # Récupère les infos du judoka/adhérent/famille pour préremplir le payeur HelloAsso.
     judoka_row = await pool.fetchrow(
         """
         SELECT a.nom, a.prenom, f.email
@@ -44,18 +48,36 @@ async def creer_paiement(payload: PaiementCreate):
     )
     if judoka_row is None:
         raise HTTPException(status_code=404, detail="Judoka introuvable.")
+
+    # ---- Mode manuel (chèque / espèces / virement) : pas de HelloAsso ----
+    if payload.mode_paiement != "helloasso":
+        paiement_row = await pool.fetchrow(
+            """
+            INSERT INTO paiements (judoka_id, competition_id, type, libelle, montant_centimes,
+                                    reduction_centimes, mode_paiement, saison)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id
+            """,
+            payload.judoka_id, payload.competition_id, payload.type,
+            payload.libelle, payload.montant_centimes, payload.reduction_centimes,
+            payload.mode_paiement, payload.saison,
+        )
+        result = await pool.fetchrow(_SELECT_PAIEMENTS + " WHERE p.id = $1", paiement_row["id"])
+        return PaiementInitieOut(paiement=PaiementOut(**dict(result)), redirect_url=None)
+
+    # ---- Mode HelloAsso : paiement en ligne ----
     if not judoka_row["email"]:
         raise HTTPException(
             status_code=400,
-            detail="La famille de cet adhérent doit avoir une adresse email renseignée pour initier un paiement.",
+            detail="La famille de cet adhérent doit avoir une adresse email renseignée pour initier un paiement HelloAsso.",
         )
 
     paiement_row = await pool.fetchrow(
         """
-        INSERT INTO paiements (judoka_id, competition_id, type, libelle, montant_centimes, reduction_centimes, saison)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, judoka_id, competition_id, type, libelle, montant_centimes, reduction_centimes,
-                  saison, statut, checkout_intent_id, date_creation, date_paiement
+        INSERT INTO paiements (judoka_id, competition_id, type, libelle, montant_centimes,
+                                reduction_centimes, mode_paiement, saison)
+        VALUES ($1, $2, $3, $4, $5, $6, 'helloasso', $7)
+        RETURNING id
         """,
         payload.judoka_id, payload.competition_id, payload.type,
         payload.libelle, payload.montant_centimes, payload.reduction_centimes, payload.saison,
@@ -74,11 +96,7 @@ async def creer_paiement(payload: PaiementCreate):
         raise HTTPException(status_code=502, detail=str(e))
 
     updated = await pool.fetchrow(
-        """
-        UPDATE paiements SET checkout_intent_id = $2
-        WHERE id = $1
-        RETURNING id
-        """,
+        "UPDATE paiements SET checkout_intent_id = $2 WHERE id = $1 RETURNING id",
         paiement_row["id"], checkout["id"],
     )
 
@@ -113,12 +131,15 @@ async def lister_paiements(judoka_id: int | None = None, statut: str | None = No
 
 @router.post("/{paiement_id}/verifier", response_model=PaiementOut)
 async def verifier_statut_paiement(paiement_id: int):
+    """Vérifie le statut réel d'un paiement HelloAsso (polling manuel)."""
     pool = get_pool()
     paiement = await pool.fetchrow(
-        "SELECT checkout_intent_id, statut FROM paiements WHERE id = $1", paiement_id
+        "SELECT checkout_intent_id, statut, mode_paiement FROM paiements WHERE id = $1", paiement_id
     )
     if paiement is None:
         raise HTTPException(status_code=404, detail="Paiement introuvable.")
+    if paiement["mode_paiement"] != "helloasso":
+        raise HTTPException(status_code=400, detail="Ce paiement n'est pas un paiement HelloAsso, utilise la validation manuelle.")
     if paiement["checkout_intent_id"] is None:
         raise HTTPException(status_code=400, detail="Ce paiement n'a pas encore été initié auprès de HelloAsso.")
 
@@ -144,6 +165,40 @@ async def verifier_statut_paiement(paiement_id: int):
         RETURNING id
         """,
         paiement_id, nouveau_statut,
+    )
+
+    result = await pool.fetchrow(_SELECT_PAIEMENTS + " WHERE p.id = $1", updated["id"])
+    return PaiementOut(**dict(result))
+
+
+@router.post("/{paiement_id}/valider-manuel", response_model=PaiementOut)
+async def valider_paiement_manuel(paiement_id: int, payload: ValiderPaiementManuelRequest):
+    """
+    Marque comme payé un paiement reçu par chèque, espèces ou virement
+    (le club a physiquement reçu le règlement).
+    """
+    pool = get_pool()
+    paiement = await pool.fetchrow(
+        "SELECT mode_paiement, statut FROM paiements WHERE id = $1", paiement_id
+    )
+    if paiement is None:
+        raise HTTPException(status_code=404, detail="Paiement introuvable.")
+    if paiement["mode_paiement"] == "helloasso":
+        raise HTTPException(
+            status_code=400,
+            detail="Ce paiement est en ligne (HelloAsso), utilise la vérification automatique plutôt que la validation manuelle.",
+        )
+    if paiement["statut"] == "paye":
+        raise HTTPException(status_code=400, detail="Ce paiement est déjà marqué comme payé.")
+
+    updated = await pool.fetchrow(
+        """
+        UPDATE paiements
+        SET statut = 'paye', date_paiement = now()
+        WHERE id = $1
+        RETURNING id
+        """,
+        paiement_id,
     )
 
     result = await pool.fetchrow(_SELECT_PAIEMENTS + " WHERE p.id = $1", updated["id"])

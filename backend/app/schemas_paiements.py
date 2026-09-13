@@ -4,6 +4,7 @@ from pydantic import BaseModel, model_validator
 
 TypePaiement = Literal["cotisation", "stage", "tournoi", "autre"]
 StatutPaiement = Literal["en_attente", "paye", "echoue", "annule"]
+ModePaiement = Literal["helloasso", "cheque", "especes", "virement"]
 
 
 class PaiementCreate(BaseModel):
@@ -13,6 +14,7 @@ class PaiementCreate(BaseModel):
     libelle: str
     montant_centimes: int  # tarif plein, avant réduction
     reduction_centimes: int = 0  # ex : réduction fratrie, montant fixe
+    mode_paiement: ModePaiement = "helloasso"
     saison: str | None = None
 
     @model_validator(mode="after")
@@ -37,6 +39,7 @@ class PaiementOut(BaseModel):
     montant_centimes: int
     reduction_centimes: int
     montant_net_centimes: int
+    mode_paiement: ModePaiement
     saison: str | None
     statut: StatutPaiement
     checkout_intent_id: int | None
@@ -47,6 +50,15 @@ class PaiementOut(BaseModel):
 
 
 class PaiementInitieOut(BaseModel):
-    """Réponse renvoyée à la création : le paiement local + le lien HelloAsso à ouvrir."""
+    """
+    Réponse renvoyée à la création. Pour un paiement HelloAsso, redirect_url
+    contient le lien à ouvrir. Pour un mode manuel (chèque/espèces/virement),
+    redirect_url est absent : le paiement est simplement créé en attente,
+    à valider ensuite manuellement.
+    """
     paiement: PaiementOut
-    redirect_url: str
+    redirect_url: str | None = None
+
+
+class ValiderPaiementManuelRequest(BaseModel):
+    notes: str | None = None

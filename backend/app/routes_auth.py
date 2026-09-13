@@ -24,6 +24,7 @@ from app.schemas_auth import (
     RegisterRequest,
     UtilisateurAdminOut,
     ActiverUtilisateurRequest,
+    ChangerRoleRequest,
 )
 from app.dependencies import get_current_user, get_current_admin
 
@@ -102,9 +103,9 @@ async def me(current_user: UtilisateurOut = Depends(get_current_user)):
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest):
     """
-    Création d'un compte en libre-service. Le compte est créé désactivé
-    (actif=false) : un administrateur doit ensuite l'activer manuellement
-    avant que la connexion ne soit possible.
+    Le tout premier compte créé sur l'instance devient automatiquement
+    administrateur et actif. Tous les suivants sont créés en tant
+    qu'adhérent, désactivés, en attente de validation par un admin.
     """
     pool = get_pool()
 
@@ -114,15 +115,23 @@ async def register(payload: RegisterRequest):
     if existe is not None:
         raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
 
+    nombre_comptes = await pool.fetchval("SELECT COUNT(*) FROM utilisateurs")
+    est_premier_compte = nombre_comptes == 0
+
     hash_ = hash_password(payload.mot_de_passe)
     await pool.execute(
         """
         INSERT INTO utilisateurs (identifiant, mot_de_passe_hash, nom, role, actif)
-        VALUES ($1, $2, $3, $4, false)
+        VALUES ($1, $2, $3, $4, $5)
         """,
-        payload.identifiant, hash_, payload.nom, payload.role,
+        payload.identifiant, hash_, payload.nom,
+        "admin" if est_premier_compte else "adherent",
+        est_premier_compte,
     )
-    return {"message": "Compte créé. Il doit être activé par un administrateur avant de pouvoir se connecter."}
+
+    if est_premier_compte:
+        return {"message": "Compte administrateur créé (premier compte de l'instance). Tu peux te connecter directement."}
+    return {"message": "Compte créé avec le rôle adhérent. Il doit être activé par un administrateur avant de pouvoir se connecter."}
 
 
 # ============================================================
@@ -162,52 +171,21 @@ async def changer_statut_utilisateur(
     return UtilisateurAdminOut(**dict(row))
 
 
-@router.post("/2fa/activer", response_model=Activer2FAOut)
-async def demarrer_activation_2fa(current_user: UtilisateurOut = Depends(get_current_user)):
-    pool = get_pool()
-    secret = pyotp.random_base32()
-
-    await pool.execute(
-        "UPDATE utilisateurs SET totp_secret = $2, totp_active = false WHERE id = $1",
-        current_user.id, secret,
-    )
-
-    totp = pyotp.TOTP(secret)
-    uri = totp.provisioning_uri(name=current_user.identifiant, issuer_name="Gestion Judo")
-
-    qr = qrcode.make(uri)
-    buffer = io.BytesIO()
-    qr.save(buffer, format="PNG")
-    qr_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-    return Activer2FAOut(secret=secret, qr_code_base64=qr_base64)
-
-
-@router.post("/2fa/confirmer", status_code=status.HTTP_204_NO_CONTENT)
-async def confirmer_activation_2fa(
-    payload: Confirmer2FARequest,
-    current_user: UtilisateurOut = Depends(get_current_user),
+@router.put("/utilisateurs/{utilisateur_id}/role", response_model=UtilisateurAdminOut)
+async def changer_role_utilisateur(
+    utilisateur_id: int,
+    payload: ChangerRoleRequest,
+    current_admin: UtilisateurOut = Depends(get_current_admin),
 ):
     pool = get_pool()
     row = await pool.fetchrow(
-        "SELECT totp_secret FROM utilisateurs WHERE id = $1", current_user.id
+        """
+        UPDATE utilisateurs SET role = $2
+        WHERE id = $1
+        RETURNING id, identifiant, nom, role, actif, created_at, last_login_at
+        """,
+        utilisateur_id, payload.role,
     )
-    if row is None or row["totp_secret"] is None:
-        raise HTTPException(status_code=400, detail="Aucune activation 2FA en cours.")
-
-    totp = pyotp.TOTP(row["totp_secret"])
-    if not totp.verify(payload.code, valid_window=1):
-        raise HTTPException(status_code=401, detail="Code de vérification incorrect.")
-
-    await pool.execute(
-        "UPDATE utilisateurs SET totp_active = true WHERE id = $1", current_user.id
-    )
-
-
-@router.post("/2fa/desactiver", status_code=status.HTTP_204_NO_CONTENT)
-async def desactiver_2fa(current_user: UtilisateurOut = Depends(get_current_user)):
-    pool = get_pool()
-    await pool.execute(
-        "UPDATE utilisateurs SET totp_active = false, totp_secret = NULL WHERE id = $1",
-        current_user.id,
-    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+    return UtilisateurAdminOut(**dict(row))

@@ -5,8 +5,6 @@ from jose import JWTError, jwt
 
 from app.config import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
 
-# bcrypt limite les mots de passe à 72 octets : on tronque proprement
-# (limite très large en pratique, aucun impact pour un usage normal).
 _MAX_BYTES = 72
 
 
@@ -28,8 +26,14 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
+def decode_access_token(token: str) -> dict | None:
+    try:
+        return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    except JWTError:
+        return None
+
+
 def create_temp_2fa_token(user_id: int) -> str:
-    """Token de très courte durée (5 min) utilisé uniquement entre l'étape mot de passe et l'étape code TOTP."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=5)
     return jwt.encode(
         {"sub": str(user_id), "scope": "2fa_pending", "exp": expire},
@@ -48,11 +52,4 @@ def decode_temp_2fa_token(token: str) -> int | None:
     try:
         return int(payload["sub"])
     except (KeyError, ValueError):
-        return None
-
-
-def decode_access_token(token: str) -> dict | None:
-    try:
-        return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-    except JWTError:
         return None
