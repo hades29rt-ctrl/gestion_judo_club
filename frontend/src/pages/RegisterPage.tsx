@@ -8,9 +8,8 @@ export function RegisterPage() {
   const [identifiant, setIdentifiant] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [nom, setNom] = useState("");
-  const [role, setRole] = useState("lecture_seule");
   const [erreur, setErreur] = useState<string | null>(null);
-  const [succes, setSucces] = useState(false);
+  const [messageSucces, setMessageSucces] = useState<string | null>(null);
   const [chargement, setChargement] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
@@ -18,13 +17,12 @@ export function RegisterPage() {
     setErreur(null);
     setChargement(true);
     try {
-      await api.post("/auth/register", {
+      const { data } = await api.post("/auth/register", {
         identifiant,
         mot_de_passe: motDePasse,
         nom: nom || null,
-        role,
       });
-      setSucces(true);
+      setMessageSucces(data.message);
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       setErreur(detail || "Impossible de créer le compte.");
@@ -46,12 +44,9 @@ export function RegisterPage() {
           <p className="text-white/50 text-sm mt-1">Créer un compte</p>
         </div>
 
-        {succes ? (
+        {messageSucces ? (
           <div className="bg-white rounded-lg p-6 shadow-xl text-center space-y-4">
-            <p className="text-sm text-ink_text">
-              Ton compte a été créé. Un administrateur du club doit maintenant
-              l'activer avant que tu puisses te connecter.
-            </p>
+            <p className="text-sm text-ink_text">{messageSucces}</p>
             <Link
               to="/login"
               className="block w-full bg-ink text-white text-sm font-medium py-2.5 rounded-md hover:bg-ink-light transition-colors"
@@ -88,21 +83,6 @@ export function RegisterPage() {
                 onChange={(e) => setNom(e.target.value)}
                 className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-ink_text mb-1.5">
-                Rôle souhaité
-              </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40 focus:border-gold"
-              >
-                <option value="professeur">Professeur</option>
-                <option value="secretaire">Secrétaire</option>
-                <option value="lecture_seule">Lecture seule</option>
-              </select>
             </div>
 
             <div>

@@ -14,10 +14,14 @@ interface UtilisateurAdmin {
 
 const LABELS_ROLE: Record<string, string> = {
   admin: "Administrateur",
-  professeur: "Professeur",
+  president: "Président",
+  tresorier: "Trésorier",
   secretaire: "Secrétaire",
-  lecture_seule: "Lecture seule",
+  membre: "Membre",
+  adherent: "Adhérent",
 };
+
+const ROLES_ASSIGNABLES = ["membre", "tresorier", "president", "secretaire", "adherent"];
 
 export function UtilisateursPage() {
   const [utilisateurs, setUtilisateurs] = useState<UtilisateurAdmin[]>([]);
@@ -40,6 +44,16 @@ export function UtilisateursPage() {
     setEnCoursId(id);
     try {
       await api.put(`/auth/utilisateurs/${id}/statut`, { actif });
+      charger();
+    } finally {
+      setEnCoursId(null);
+    }
+  }
+
+  async function changerRole(id: number, role: string) {
+    setEnCoursId(id);
+    try {
+      await api.put(`/auth/utilisateurs/${id}/role`, { role });
       charger();
     } finally {
       setEnCoursId(null);
@@ -75,16 +89,14 @@ export function UtilisateursPage() {
                     {u.identifiant} — {LABELS_ROLE[u.role] ?? u.role}
                   </p>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => changerStatut(u.id, true)}
-                    disabled={enCoursId === u.id}
-                    className="flex items-center gap-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md hover:opacity-80 disabled:opacity-50"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    Activer
-                  </button>
-                </div>
+                <button
+                  onClick={() => changerStatut(u.id, true)}
+                  disabled={enCoursId === u.id}
+                  className="flex items-center gap-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md hover:opacity-80 disabled:opacity-50"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Activer
+                </button>
               </div>
             ))}
           </div>
@@ -111,8 +123,23 @@ export function UtilisateursPage() {
                 <tr key={u.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-3 font-medium">{u.nom || "—"}</td>
                   <td className="px-4 py-3 text-muted">{u.identifiant}</td>
-                  <td className="px-4 py-3 text-muted">
-                    {LABELS_ROLE[u.role] ?? u.role}
+                  <td className="px-4 py-3">
+                    {u.role === "admin" ? (
+                      <span className="text-muted">{LABELS_ROLE[u.role]}</span>
+                    ) : (
+                      <select
+                        value={u.role}
+                        onChange={(e) => changerRole(u.id, e.target.value)}
+                        disabled={enCoursId === u.id}
+                        className="text-xs border border-border rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-gold/40"
+                      >
+                        {ROLES_ASSIGNABLES.map((r) => (
+                          <option key={r} value={r}>
+                            {LABELS_ROLE[r]}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {u.last_login_at

@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Check } from "lucide-react";
 import { api } from "../lib/api";
 import type { Paiement } from "../types";
 import { LABELS_TYPE_PAIEMENT, LABELS_STATUT_PAIEMENT } from "../lib/labels";
 import { NouveauPaiementModal } from "../components/NouveauPaiementModal";
+
+const LABELS_MODE: Record<string, string> = {
+  helloasso: "HelloAsso",
+  cheque: "Chèque",
+  especes: "Espèces",
+  virement: "Virement",
+};
 
 function formaterMontant(centimes: number) {
   return (centimes / 100).toLocaleString("fr-FR", {
@@ -16,7 +23,7 @@ export function PaiementsPage() {
   const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [chargement, setChargement] = useState(true);
   const [modalNouveau, setModalNouveau] = useState(false);
-  const [verificationId, setVerificationId] = useState<number | null>(null);
+  const [actionEnCoursId, setActionEnCoursId] = useState<number | null>(null);
 
   async function charger() {
     setChargement(true);
@@ -31,12 +38,22 @@ export function PaiementsPage() {
   }, []);
 
   async function verifierStatut(id: number) {
-    setVerificationId(id);
+    setActionEnCoursId(id);
     try {
       await api.post(`/paiements/${id}/verifier`);
       charger();
     } finally {
-      setVerificationId(null);
+      setActionEnCoursId(null);
+    }
+  }
+
+  async function validerManuel(id: number) {
+    setActionEnCoursId(id);
+    try {
+      await api.post(`/paiements/${id}/valider-manuel`, {});
+      charger();
+    } finally {
+      setActionEnCoursId(null);
     }
   }
 
@@ -46,7 +63,8 @@ export function PaiementsPage() {
         <div>
           <h1 className="font-display text-2xl font-semibold">Paiements</h1>
           <p className="text-muted text-sm mt-1">
-            Cotisations et inscriptions payées en ligne via HelloAsso
+            Cotisations et inscriptions — en ligne via HelloAsso ou reçues par
+            chèque, espèces, virement
           </p>
         </div>
         <button
@@ -65,7 +83,8 @@ export function PaiementsPage() {
               <th className="px-4 py-3">Judoka</th>
               <th className="px-4 py-3">Libellé</th>
               <th className="px-4 py-3">Type</th>
-              <th className="px-4 py-3">Montant</th>
+              <th className="px-4 py-3">Mode</th>
+              <th className="px-4 py-3">Montant net</th>
               <th className="px-4 py-3">Statut</th>
               <th className="px-4 py-3 w-10"></th>
             </tr>
@@ -73,14 +92,14 @@ export function PaiementsPage() {
           <tbody>
             {chargement && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted">
                   Chargement...
                 </td>
               </tr>
             )}
             {!chargement && paiements.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                <td colSpan={7} className="px-4 py-8 text-center text-muted">
                   Aucun paiement enregistré.
                 </td>
               </tr>
@@ -96,8 +115,14 @@ export function PaiementsPage() {
                   <td className="px-4 py-3 text-muted">
                     {LABELS_TYPE_PAIEMENT[p.type]}
                   </td>
+                  <td className="px-4 py-3 text-muted">
+                    {LABELS_MODE[p.mode_paiement] ?? p.mode_paiement}
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    {formaterMontant(p.montant_centimes)}
+                    {formaterMontant(p.montant_net_centimes)}
+                    {p.reduction_centimes > 0 && (
+                      <span className="text-muted"> (-{formaterMontant(p.reduction_centimes)})</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -107,16 +132,27 @@ export function PaiementsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {p.statut === "en_attente" && (
+                    {p.statut === "en_attente" && p.mode_paiement === "helloasso" && (
                       <button
                         onClick={() => verifierStatut(p.id)}
-                        disabled={verificationId === p.id}
+                        disabled={actionEnCoursId === p.id}
                         title="Vérifier le statut auprès de HelloAsso"
                         className="text-muted hover:text-ink_text disabled:opacity-50"
                       >
                         <RefreshCw
-                          className={`w-4 h-4 ${verificationId === p.id ? "animate-spin" : ""}`}
+                          className={`w-4 h-4 ${actionEnCoursId === p.id ? "animate-spin" : ""}`}
                         />
+                      </button>
+                    )}
+                    {p.statut === "en_attente" && p.mode_paiement !== "helloasso" && (
+                      <button
+                        onClick={() => validerManuel(p.id)}
+                        disabled={actionEnCoursId === p.id}
+                        title="Marquer comme reçu / payé"
+                        className="flex items-center gap-1 text-xs font-medium text-emerald-700 hover:opacity-80 disabled:opacity-50"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Valider
                       </button>
                     )}
                   </td>

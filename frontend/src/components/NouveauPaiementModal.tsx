@@ -9,16 +9,26 @@ interface Props {
   onCreated: () => void;
 }
 
+const LABELS_MODE: Record<string, string> = {
+  helloasso: "HelloAsso (en ligne)",
+  cheque: "Chèque",
+  especes: "Espèces",
+  virement: "Virement",
+};
+
 export function NouveauPaiementModal({ onClose, onCreated }: Props) {
   const [adherents, setAdherents] = useState<AdherentJudoka[]>([]);
   const [judokaId, setJudokaId] = useState("");
   const [type, setType] = useState("cotisation");
   const [libelle, setLibelle] = useState("");
   const [montant, setMontant] = useState("");
+  const [reduction, setReduction] = useState("0");
+  const [modePaiement, setModePaiement] = useState("helloasso");
   const [saison, setSaison] = useState("2025-2026");
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState(false);
   const [lienGenere, setLienGenere] = useState<string | null>(null);
+  const [creeSansLien, setCreeSansLien] = useState(false);
 
   useEffect(() => {
     api.get<AdherentJudoka[]>("/adherents").then(({ data }) => {
@@ -40,27 +50,35 @@ export function NouveauPaiementModal({ onClose, onCreated }: Props) {
         type,
         libelle,
         montant_centimes: Math.round(Number(montant) * 100),
+        reduction_centimes: Math.round(Number(reduction) * 100),
+        mode_paiement: modePaiement,
         saison: saison || null,
       });
-      setLienGenere(data.redirect_url);
       onCreated();
+      if (data.redirect_url) {
+        setLienGenere(data.redirect_url);
+      } else {
+        setCreeSansLien(true);
+      }
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       setErreur(
         detail ||
-          "Impossible de générer le paiement. Vérifie que les identifiants HelloAsso sont configurés côté serveur."
+          "Impossible de créer le paiement. Vérifie les champs saisis (et les identifiants HelloAsso si mode en ligne)."
       );
     } finally {
       setEnvoi(false);
     }
   }
 
+  const affichageResultat = lienGenere !== null || creeSansLien;
+
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 p-4">
       <div className="bg-card rounded-lg shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-display font-semibold text-lg">
-            {lienGenere ? "Lien de paiement généré" : "Nouveau paiement"}
+            {affichageResultat ? "Paiement enregistré" : "Nouveau paiement"}
           </h2>
           <button onClick={onClose} className="text-muted hover:text-ink_text">
             <X className="w-5 h-5" />
@@ -94,6 +112,20 @@ export function NouveauPaiementModal({ onClose, onCreated }: Props) {
               Fermer
             </button>
           </div>
+        ) : creeSansLien ? (
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-muted">
+              Le paiement a été enregistré en attente. Une fois le règlement
+              physiquement reçu par le club, valide-le depuis la liste des
+              paiements.
+            </p>
+            <button
+              onClick={onClose}
+              className="block w-full text-center bg-ink text-white text-sm font-medium py-2.5 rounded-md hover:bg-ink-light transition-colors"
+            >
+              Fermer
+            </button>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             <div>
@@ -113,18 +145,36 @@ export function NouveauPaiementModal({ onClose, onCreated }: Props) {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Type</label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
-              >
-                <option value="cotisation">Cotisation</option>
-                <option value="stage">Stage</option>
-                <option value="tournoi">Tournoi</option>
-                <option value="autre">Autre</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1.5">Type</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+                >
+                  <option value="cotisation">Cotisation</option>
+                  <option value="stage">Stage</option>
+                  <option value="tournoi">Tournoi</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  Mode de paiement
+                </label>
+                <select
+                  value={modePaiement}
+                  onChange={(e) => setModePaiement(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+                >
+                  {Object.entries(LABELS_MODE).map(([valeur, label]) => (
+                    <option key={valeur} value={valeur}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>
@@ -138,7 +188,7 @@ export function NouveauPaiementModal({ onClose, onCreated }: Props) {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm font-medium mb-1.5">
                   Montant (€)
@@ -149,9 +199,23 @@ export function NouveauPaiementModal({ onClose, onCreated }: Props) {
                   step="0.01"
                   value={montant}
                   onChange={(e) => setMontant(e.target.value)}
-                  placeholder="ex : 120"
+                  placeholder="ex : 150"
                   className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
                   required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  Réduction (€)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={reduction}
+                  onChange={(e) => setReduction(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
                 />
               </div>
               <div>
@@ -179,7 +243,11 @@ export function NouveauPaiementModal({ onClose, onCreated }: Props) {
                 disabled={envoi}
                 className="px-4 py-2 bg-ink text-white text-sm font-medium rounded-md hover:bg-ink-light disabled:opacity-50"
               >
-                {envoi ? "Génération..." : "Générer le lien de paiement"}
+                {envoi
+                  ? "Enregistrement..."
+                  : modePaiement === "helloasso"
+                    ? "Générer le lien de paiement"
+                    : "Enregistrer le paiement"}
               </button>
             </div>
           </form>

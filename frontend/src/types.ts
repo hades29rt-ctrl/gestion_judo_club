@@ -131,6 +131,7 @@ export interface Paiement {
   montant_centimes: number;
   reduction_centimes: number;
   montant_net_centimes: number;
+  mode_paiement: "helloasso" | "cheque" | "especes" | "virement";
   saison: string | null;
   statut: "en_attente" | "paye" | "echoue" | "annule";
   checkout_intent_id: number | null;
@@ -142,7 +143,7 @@ export interface Paiement {
 
 export interface PaiementInitie {
   paiement: Paiement;
-  redirect_url: string;
+  redirect_url: string | null;
 }
 
 export interface TauxPresenceCours {
