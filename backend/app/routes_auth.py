@@ -104,8 +104,11 @@ async def me(current_user: UtilisateurOut = Depends(get_current_user)):
 async def register(payload: RegisterRequest):
     """
     Le tout premier compte créé sur l'instance devient automatiquement
-    administrateur et actif. Tous les suivants sont créés en tant
-    qu'adhérent, désactivés, en attente de validation par un admin.
+    administrateur. Tous les suivants sont créés avec le rôle adhérent.
+    Dans les deux cas, le compte est actif immédiatement (pas de validation
+    manuelle) — seuls les droits du rôle restreignent ce que le compte peut
+    faire (un adhérent ne peut ni modifier le logiciel, ni changer les
+    privilèges des autres comptes ; seul un admin peut élever un rôle).
     """
     pool = get_pool()
 
@@ -122,16 +125,15 @@ async def register(payload: RegisterRequest):
     await pool.execute(
         """
         INSERT INTO utilisateurs (identifiant, mot_de_passe_hash, nom, role, actif)
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, true)
         """,
         payload.identifiant, hash_, payload.nom,
         "admin" if est_premier_compte else "adherent",
-        est_premier_compte,
     )
 
     if est_premier_compte:
         return {"message": "Compte administrateur créé (premier compte de l'instance). Tu peux te connecter directement."}
-    return {"message": "Compte créé avec le rôle adhérent. Il doit être activé par un administrateur avant de pouvoir se connecter."}
+    return {"message": "Compte créé avec le rôle adhérent. Tu peux te connecter directement."}
 
 
 # ============================================================

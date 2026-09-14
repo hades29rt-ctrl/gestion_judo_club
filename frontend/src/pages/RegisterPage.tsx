@@ -51,7 +51,7 @@ export function RegisterPage() {
               to="/login"
               className="block w-full bg-ink text-white text-sm font-medium py-2.5 rounded-md hover:bg-ink-light transition-colors"
             >
-              Retour à la connexion
+              Se connecter
             </Link>
           </div>
         ) : (
