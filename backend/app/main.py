@@ -12,6 +12,7 @@ from app.routes_licences import router as licences_router
 from app.routes_competitions import router as competitions_router, palmares_router
 from app.routes_paiements import router as paiements_router
 from app.routes_statistiques import router as statistiques_router
+from app.routes_mon_compte import router as mon_compte_router
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app.include_router(competitions_router)
 app.include_router(palmares_router)
 app.include_router(paiements_router)
 app.include_router(statistiques_router)
+app.include_router(mon_compte_router)
 
 
 @app.get("/")

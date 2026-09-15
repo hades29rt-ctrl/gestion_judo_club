@@ -28,7 +28,7 @@ async def get_current_user(
 
     pool = get_pool()
     row = await pool.fetchrow(
-        "SELECT id, identifiant, nom, role FROM utilisateurs WHERE id = $1 AND actif = true",
+        "SELECT id, identifiant, nom, role, famille_id FROM utilisateurs WHERE id = $1 AND actif = true",
         int(user_id),
     )
     if row is None:

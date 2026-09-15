@@ -25,6 +25,7 @@ from app.schemas_auth import (
     UtilisateurAdminOut,
     ActiverUtilisateurRequest,
     ChangerRoleRequest,
+    LierFamilleRequest,
 )
 from app.dependencies import get_current_user, get_current_admin
 
@@ -145,7 +146,7 @@ async def lister_utilisateurs(current_admin: UtilisateurOut = Depends(get_curren
     pool = get_pool()
     rows = await pool.fetch(
         """
-        SELECT id, identifiant, nom, role, actif, created_at, last_login_at
+        SELECT id, identifiant, nom, role, actif, famille_id, created_at, last_login_at
         FROM utilisateurs
         ORDER BY actif ASC, created_at DESC
         """
@@ -164,7 +165,7 @@ async def changer_statut_utilisateur(
         """
         UPDATE utilisateurs SET actif = $2
         WHERE id = $1
-        RETURNING id, identifiant, nom, role, actif, created_at, last_login_at
+        RETURNING id, identifiant, nom, role, actif, famille_id, created_at, last_login_at
         """,
         utilisateur_id, payload.actif,
     )
@@ -184,10 +185,64 @@ async def changer_role_utilisateur(
         """
         UPDATE utilisateurs SET role = $2
         WHERE id = $1
-        RETURNING id, identifiant, nom, role, actif, created_at, last_login_at
+        RETURNING id, identifiant, nom, role, actif, famille_id, created_at, last_login_at
         """,
         utilisateur_id, payload.role,
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     return UtilisateurAdminOut(**dict(row))
+
+
+@router.put("/utilisateurs/{utilisateur_id}/famille", response_model=UtilisateurAdminOut)
+async def lier_famille_utilisateur(
+    utilisateur_id: int,
+    payload: LierFamilleRequest,
+    current_admin: UtilisateurOut = Depends(get_current_admin),
+):
+    pool = get_pool()
+    if payload.famille_id is not None:
+        famille_existe = await pool.fetchrow(
+            "SELECT id FROM familles WHERE id = $1", payload.famille_id
+        )
+        if famille_existe is None:
+            raise HTTPException(status_code=404, detail="Famille introuvable.")
+
+    row = await pool.fetchrow(
+        """
+        UPDATE utilisateurs SET famille_id = $2
+        WHERE id = $1
+        RETURNING id, identifiant, nom, role, actif, famille_id, created_at, last_login_at
+        """,
+        utilisateur_id, payload.famille_id,
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+    return UtilisateurAdminOut(**dict(row))
+
+
+@router.delete("/utilisateurs/{utilisateur_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_utilisateur(
+    utilisateur_id: int,
+    current_admin: UtilisateurOut = Depends(get_current_admin),
+):
+    pool = get_pool()
+
+    if utilisateur_id == current_admin.id:
+        raise HTTPException(status_code=400, detail="Impossible de supprimer ton propre compte.")
+
+    cible = await pool.fetchrow("SELECT role FROM utilisateurs WHERE id = $1", utilisateur_id)
+    if cible is None:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+
+    if cible["role"] == "admin":
+        nombre_admins = await pool.fetchval(
+            "SELECT COUNT(*) FROM utilisateurs WHERE role = 'admin'"
+        )
+        if nombre_admins <= 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Impossible de supprimer le dernier compte administrateur.",
+            )
+
+    await pool.execute("DELETE FROM utilisateurs WHERE id = $1", utilisateur_id)

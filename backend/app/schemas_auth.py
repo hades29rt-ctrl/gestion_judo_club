@@ -41,6 +41,7 @@ class UtilisateurOut(BaseModel):
     identifiant: str
     nom: str | None
     role: RoleUtilisateur
+    famille_id: int | None = None
 
 
 class RegisterRequest(BaseModel):
@@ -62,8 +63,13 @@ class UtilisateurAdminOut(BaseModel):
     nom: str | None
     role: RoleUtilisateur
     actif: bool
+    famille_id: int | None = None
     created_at: datetime
     last_login_at: datetime | None
+
+
+class LierFamilleRequest(BaseModel):
+    famille_id: int | None  # None pour délier
 
 
 class ActiverUtilisateurRequest(BaseModel):
