@@ -6,6 +6,7 @@ from app.schemas_paiements import (
     PaiementCreate,
     PaiementOut,
     PaiementInitieOut,
+    PaiementUpdate,
     ValiderPaiementManuelRequest,
 )
 from app.services_helloasso import (
@@ -127,6 +128,49 @@ async def lister_paiements(judoka_id: int | None = None, statut: str | None = No
 
     rows = await pool.fetch(query, *params)
     return [PaiementOut(**dict(r)) for r in rows]
+
+
+@router.put("/{paiement_id}", response_model=PaiementOut)
+async def modifier_paiement(paiement_id: int, payload: PaiementUpdate):
+    """
+    Corrige un paiement déjà saisi (montant, libellé, type, saison, réduction)
+    sans devoir en recréer un — évite les doublons en cas d'erreur de saisie.
+    Ne touche ni au statut, ni au mode de paiement, ni à HelloAsso : utilise
+    /verifier ou /valider-manuel pour faire évoluer le statut.
+    """
+    pool = get_pool()
+    champs = payload.model_dump(exclude_unset=True)
+    if not champs:
+        raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour.")
+
+    existant = await pool.fetchrow(
+        "SELECT montant_centimes, reduction_centimes FROM paiements WHERE id = $1", paiement_id
+    )
+    if existant is None:
+        raise HTTPException(status_code=404, detail="Paiement introuvable.")
+
+    nouveau_montant = champs.get("montant_centimes", existant["montant_centimes"])
+    nouvelle_reduction = champs.get("reduction_centimes", existant["reduction_centimes"])
+    if nouvelle_reduction >= nouveau_montant:
+        raise HTTPException(
+            status_code=422,
+            detail="La réduction ne peut pas être supérieure ou égale au montant.",
+        )
+
+    set_clauses = [f"{champ} = ${i + 2}" for i, champ in enumerate(champs.keys())]
+    query = f"UPDATE paiements SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id"
+    updated = await pool.fetchrow(query, paiement_id, *champs.values())
+
+    result = await pool.fetchrow(_SELECT_PAIEMENTS + " WHERE p.id = $1", updated["id"])
+    return PaiementOut(**dict(result))
+
+
+@router.delete("/{paiement_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def supprimer_paiement(paiement_id: int):
+    pool = get_pool()
+    result = await pool.execute("DELETE FROM paiements WHERE id = $1", paiement_id)
+    if result == "DELETE 0":
+        raise HTTPException(status_code=404, detail="Paiement introuvable.")
 
 
 @router.post("/{paiement_id}/verifier", response_model=PaiementOut)

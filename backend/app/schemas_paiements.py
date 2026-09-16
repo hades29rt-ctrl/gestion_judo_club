@@ -60,5 +60,13 @@ class PaiementInitieOut(BaseModel):
     redirect_url: str | None = None
 
 
+class PaiementUpdate(BaseModel):
+    type: TypePaiement | None = None
+    libelle: str | None = None
+    montant_centimes: int | None = None
+    reduction_centimes: int | None = None
+    saison: str | None = None
+
+
 class ValiderPaiementManuelRequest(BaseModel):
     notes: str | None = None
