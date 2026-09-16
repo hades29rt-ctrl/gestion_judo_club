@@ -16,6 +16,7 @@ import { CommunicationPage } from "./pages/CommunicationPage";
 import { SecuritePage } from "./pages/SecuritePage";
 import { UtilisateursPage } from "./pages/UtilisateursPage";
 import { StatistiquesPage } from "./pages/StatistiquesPage";
+import { MonComptePage } from "./pages/MonComptePage";
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/securite" element={<SecuritePage />} />
             <Route path="/utilisateurs" element={<UtilisateursPage />} />
             <Route path="/statistiques" element={<StatistiquesPage />} />
+            <Route path="/mon-compte" element={<MonComptePage />} />
           </Route>
           <Route path="*" element={<Navigate to="/adherents" replace />} />
         </Routes>

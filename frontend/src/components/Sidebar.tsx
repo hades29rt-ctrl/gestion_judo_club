@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Users, BarChart3, LogOut, Swords, CalendarDays, IdCard, Trophy, CreditCard, Mail, ShieldCheck, UserCog, Home } from "lucide-react";
+import { Users, BarChart3, LogOut, Swords, CalendarDays, IdCard, Trophy, CreditCard, Mail, ShieldCheck, UserCog, Home, User } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS_COMPLETS = [
@@ -17,6 +17,7 @@ const NAV_ITEMS_COMPLETS = [
 // Le rôle "adherent" (famille) n'a accès qu'aux horaires de cours,
 // aux compétitions, et à ses propres paramètres de sécurité.
 const NAV_ITEMS_ADHERENT = [
+  { to: "/mon-compte", label: "Mon compte", icon: User },
   { to: "/cours", label: "Cours", icon: CalendarDays },
   { to: "/competitions", label: "Compétitions", icon: Trophy },
   { to: "/securite", label: "Sécurité", icon: ShieldCheck },

@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 
 // Pages accessibles au rôle "adherent" (famille) : horaires de cours,
 // compétitions, et ses propres paramètres de sécurité.
-const CHEMINS_AUTORISES_ADHERENT = ["/cours", "/competitions", "/securite"];
+const CHEMINS_AUTORISES_ADHERENT = ["/mon-compte", "/cours", "/competitions", "/securite"];
 
 export function AppLayout() {
   const { utilisateur } = useAuth();
@@ -16,7 +16,7 @@ export function AppLayout() {
     CHEMINS_AUTORISES_ADHERENT.some((chemin) => location.pathname.startsWith(chemin));
 
   if (!cheminAutorise) {
-    return <Navigate to="/cours" replace />;
+    return <Navigate to="/mon-compte" replace />;
   }
 
   return (

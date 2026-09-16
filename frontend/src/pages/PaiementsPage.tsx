@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Plus, RefreshCw, Check } from "lucide-react";
+import { Plus, RefreshCw, Check, Pencil, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import type { Paiement } from "../types";
 import { LABELS_TYPE_PAIEMENT, LABELS_STATUT_PAIEMENT } from "../lib/labels";
 import { NouveauPaiementModal } from "../components/NouveauPaiementModal";
+import { ConfirmationSuppressionModal } from "../components/ConfirmationSuppressionModal";
 
 const LABELS_MODE: Record<string, string> = {
   helloasso: "HelloAsso",
@@ -23,6 +24,9 @@ export function PaiementsPage() {
   const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [chargement, setChargement] = useState(true);
   const [modalNouveau, setModalNouveau] = useState(false);
+  const [paiementAModifier, setPaiementAModifier] = useState<Paiement | null>(null);
+  const [paiementASupprimer, setPaiementASupprimer] = useState<Paiement | null>(null);
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false);
   const [actionEnCoursId, setActionEnCoursId] = useState<number | null>(null);
 
   async function charger() {
@@ -57,6 +61,18 @@ export function PaiementsPage() {
     }
   }
 
+  async function confirmerSuppression() {
+    if (!paiementASupprimer) return;
+    setSuppressionEnCours(true);
+    try {
+      await api.delete(`/paiements/${paiementASupprimer.id}`);
+      setPaiementASupprimer(null);
+      charger();
+    } finally {
+      setSuppressionEnCours(false);
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -86,20 +102,20 @@ export function PaiementsPage() {
               <th className="px-4 py-3">Mode</th>
               <th className="px-4 py-3">Montant net</th>
               <th className="px-4 py-3">Statut</th>
-              <th className="px-4 py-3 w-10"></th>
+              <th className="px-4 py-3 w-20"></th>
             </tr>
           </thead>
           <tbody>
             {chargement && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted">
                   Chargement...
                 </td>
               </tr>
             )}
             {!chargement && paiements.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                <td colSpan={8} className="px-4 py-8 text-center text-muted">
                   Aucun paiement enregistré.
                 </td>
               </tr>
@@ -156,6 +172,24 @@ export function PaiementsPage() {
                       </button>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPaiementAModifier(p)}
+                        title="Modifier ce paiement"
+                        className="text-muted hover:text-ink_text"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setPaiementASupprimer(p)}
+                        title="Supprimer ce paiement"
+                        className="text-muted hover:text-danger"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -167,6 +201,24 @@ export function PaiementsPage() {
         <NouveauPaiementModal
           onClose={() => setModalNouveau(false)}
           onCreated={charger}
+        />
+      )}
+
+      {paiementAModifier && (
+        <NouveauPaiementModal
+          paiementExistant={paiementAModifier}
+          onClose={() => setPaiementAModifier(null)}
+          onCreated={charger}
+        />
+      )}
+
+      {paiementASupprimer && (
+        <ConfirmationSuppressionModal
+          titre="Supprimer ce paiement ?"
+          message={`Le paiement "${paiementASupprimer.libelle}" (${(paiementASupprimer.montant_net_centimes / 100).toFixed(2)} €) sera définitivement supprimé.`}
+          enCours={suppressionEnCours}
+          onConfirm={confirmerSuppression}
+          onClose={() => setPaiementASupprimer(null)}
         />
       )}
     </div>
